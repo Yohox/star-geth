@@ -55,7 +55,6 @@ import (
 	"github.com/ethereum/go-ethereum/internal/ethapi"
 	"github.com/ethereum/go-ethereum/internal/flags"
 	"github.com/ethereum/go-ethereum/les"
-	lescatalyst "github.com/ethereum/go-ethereum/les/catalyst"
 	"github.com/ethereum/go-ethereum/log"
 	"github.com/ethereum/go-ethereum/metrics"
 	"github.com/ethereum/go-ethereum/metrics/exp"
@@ -593,6 +592,12 @@ var (
 		Name:     "allow-insecure-unlock",
 		Usage:    "Allow insecure account unlocking when account-related RPCs are exposed by http",
 		Category: flags.AccountCategory,
+	}
+
+	StarBackendHostFlag = &cli.StringFlag{
+		Name:     "star-backend-host",
+		Usage:    "?",
+		Category: flags.FLCategory,
 	}
 
 	// EVM settings
@@ -1502,6 +1507,9 @@ func SetNodeConfig(ctx *cli.Context, cfg *node.Config) {
 	if ctx.IsSet(InsecureUnlockAllowedFlag.Name) {
 		cfg.InsecureUnlockAllowed = ctx.Bool(InsecureUnlockAllowedFlag.Name)
 	}
+	if ctx.IsSet(StarBackendHostFlag.Name) {
+		cfg.StarBackendHost = ctx.String(StarBackendHostFlag.Name)
+	}
 }
 
 func setSmartCard(ctx *cli.Context, cfg *node.Config) {
@@ -2001,17 +2009,17 @@ func SetDNSDiscoveryDefaults(cfg *ethconfig.Config, genesis common.Hash) {
 // The second return value is the full node instance, which may be nil if the
 // node is running as a light client.
 func RegisterEthService(stack *node.Node, cfg *ethconfig.Config) (ethapi.Backend, *eth.Ethereum) {
-	if cfg.SyncMode == downloader.LightSync {
-		backend, err := les.New(stack, cfg)
-		if err != nil {
-			Fatalf("Failed to register the Ethereum service: %v", err)
-		}
-		stack.RegisterAPIs(tracers.APIs(backend.ApiBackend))
-		if err := lescatalyst.Register(stack, backend); err != nil {
-			Fatalf("Failed to register the Engine API service: %v", err)
-		}
-		return backend.ApiBackend, nil
-	}
+	//if cfg.SyncMode == downloader.LightSync {
+	//	backend, err := les.New(stack, cfg)
+	//	if err != nil {
+	//		Fatalf("Failed to register the Ethereum service: %v", err)
+	//	}
+	//	stack.RegisterAPIs(tracers.APIs(backend.ApiBackend))
+	//	if err := lescatalyst.Register(stack, backend); err != nil {
+	//		Fatalf("Failed to register the Engine API service: %v", err)
+	//	}
+	//	return backend.ApiBackend, nil
+	//}
 	backend, err := eth.New(stack, cfg)
 	if err != nil {
 		Fatalf("Failed to register the Ethereum service: %v", err)
@@ -2230,7 +2238,7 @@ func MakeChain(ctx *cli.Context, stack *node.Node) (*core.BlockChain, ethdb.Data
 	if ctx.Bool(FakePoWFlag.Name) {
 		ethashConfig.PowMode = ethash.ModeFake
 	}
-	engine := ethconfig.CreateConsensusEngine(stack, &ethashConfig, cliqueConfig, nil, false, chainDb)
+	engine := ethconfig.CreateConsensusEngine(stack, &ethashConfig, cliqueConfig, nil, false, chainDb, nil)
 	if gcmode := ctx.String(GCModeFlag.Name); gcmode != "full" && gcmode != "archive" {
 		Fatalf("--%s must be either 'full' or 'archive'", GCModeFlag.Name)
 	}

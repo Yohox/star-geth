@@ -40,6 +40,7 @@ import (
 type Backend interface {
 	BlockChain() *core.BlockChain
 	TxPool() *core.TxPool
+	GlobalModelPool() *core.ModelPool
 }
 
 // Config is the configuration parameters of mining.

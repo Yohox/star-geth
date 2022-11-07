@@ -68,6 +68,8 @@ type Backend interface {
 	// TxPool retrieves the transaction pool object to serve data.
 	TxPool() TxPool
 
+	GlobalModelPool() *core.ModelPool
+
 	// AcceptTxs retrieves whether transaction processing is enabled on the node
 	// or if inbound transactions should simply be dropped.
 	AcceptTxs() bool
@@ -179,6 +181,9 @@ var eth66 = map[uint64]msgHandler{
 	ReceiptsMsg:                   handleReceipts66,
 	GetPooledTransactionsMsg:      handleGetPooledTransactions66,
 	PooledTransactionsMsg:         handlePooledTransactions66,
+	NewGlobalModelMsg:             handleNewGlobalModel66,
+	NewLocalModelMsg:              handleNewLocalModel66,
+	RegisterFLClientMsg:           handleRegisterFLClient66,
 }
 
 var eth67 = map[uint64]msgHandler{
@@ -194,6 +199,9 @@ var eth67 = map[uint64]msgHandler{
 	ReceiptsMsg:                   handleReceipts66,
 	GetPooledTransactionsMsg:      handleGetPooledTransactions66,
 	PooledTransactionsMsg:         handlePooledTransactions66,
+	NewGlobalModelMsg:             handleNewGlobalModel66,
+	NewLocalModelMsg:              handleNewLocalModel66,
+	RegisterFLClientMsg:           handleRegisterFLClient66,
 }
 
 // handleMessage is invoked whenever an inbound message is received from a remote

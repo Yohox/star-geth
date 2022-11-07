@@ -2092,3 +2092,49 @@ func toHexSlice(b [][]byte) []string {
 	}
 	return r
 }
+
+type StarAPI struct {
+	b Backend
+}
+
+func NewStarAPI(b Backend) *StarAPI {
+	return &StarAPI{
+		b,
+	}
+}
+
+func (s *StarAPI) Register(ctx context.Context, addr *common.Address, dataSize uint) error {
+	err := s.b.Register(ctx, addr, dataSize)
+	if err != nil {
+		return fmt.Errorf("s.b.Register err: %v", err)
+	}
+
+	return nil
+}
+
+func (s *StarAPI) NewLocalModel(ctx context.Context, address *common.Address, modelStateHex string) error {
+	err := s.b.NewLocalModel(ctx, address, modelStateHex)
+	if err != nil {
+		return fmt.Errorf("s.b.NewLocalModel err: %v", err)
+	}
+
+	return nil
+}
+
+func (s *StarAPI) NewGlobalModel(ctx context.Context, address *common.Address, modelStateHex string) error {
+	err := s.b.NewGlobalModel(ctx, address, modelStateHex)
+	if err != nil {
+		return fmt.Errorf("s.b.NewGlobalModel err: %v", err)
+	}
+
+	return nil
+}
+
+func (s *StarAPI) GetTrainInfo(ctx context.Context) (map[string]interface{}, error) {
+	data, err := s.b.GetTrainInfo(ctx)
+	if err != nil {
+		return nil, fmt.Errorf("s.b.GetTrainInfo err: %v", err)
+	}
+
+	return data, nil
+}

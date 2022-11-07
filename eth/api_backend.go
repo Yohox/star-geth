@@ -19,6 +19,7 @@ package eth
 import (
 	"context"
 	"errors"
+	"fmt"
 	"math/big"
 	"time"
 
@@ -369,4 +370,39 @@ func (b *EthAPIBackend) StateAtBlock(ctx context.Context, block *types.Block, re
 
 func (b *EthAPIBackend) StateAtTransaction(ctx context.Context, block *types.Block, txIndex int, reexec uint64) (core.Message, vm.BlockContext, *state.StateDB, tracers.StateReleaseFunc, error) {
 	return b.eth.stateAtTransaction(block, txIndex, reexec)
+}
+
+func (b *EthAPIBackend) Register(ctx context.Context, addr *common.Address, dataSize uint) error {
+	err := b.eth.RegisterFLClient(addr, dataSize)
+	if err != nil {
+		return fmt.Errorf("b.eth.RegisterFLClient err: %v", err)
+	}
+	return nil
+}
+
+func (b *EthAPIBackend) NewLocalModel(ctx context.Context, address *common.Address, modelStateHex string) error {
+	err := b.eth.NewLocalModel(address, modelStateHex)
+	if err != nil {
+		return fmt.Errorf("b.eth.NewLocalModel err: %v", err)
+	}
+
+	return nil
+}
+
+func (b *EthAPIBackend) NewGlobalModel(ctx context.Context, address *common.Address, modelStateHex string) error {
+	err := b.eth.NewGlobalModel(address, modelStateHex)
+	if err != nil {
+		return fmt.Errorf("b.eth.NewGlobalModel err: %v", err)
+	}
+
+	return nil
+}
+
+func (b *EthAPIBackend) GetTrainInfo(ctx context.Context) (map[string]interface{}, error) {
+	res, err := b.eth.GetTrainInfo()
+	if err != nil {
+		return nil, fmt.Errorf("b.eth.getTrainInfo err: %v", err)
+	}
+
+	return res, nil
 }

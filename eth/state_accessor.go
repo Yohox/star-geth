@@ -223,3 +223,60 @@ func (eth *Ethereum) stateAtTransaction(block *types.Block, txIndex int, reexec 
 	}
 	return nil, vm.BlockContext{}, nil, nil, fmt.Errorf("transaction index %d out of range for block %#x", txIndex, block.Hash())
 }
+
+func (eth *Ethereum) RegisterFLClient(address *common.Address, dataSize uint) error {
+	for _, peer := range eth.handler.peers.peers {
+		err := peer.RegisterFlClient(address, dataSize)
+		if err != nil {
+			log.Error(fmt.Sprintf("peer.RegisterFlClient err: %v", err))
+		}
+	}
+	err := eth.starBackend.Register(address, dataSize)
+	if err != nil {
+		return fmt.Errorf("eth.starBackend.Register err: %v", err)
+	}
+
+	return nil
+}
+
+func (eth *Ethereum) NewLocalModel(address *common.Address, localModelStateHex string) error {
+	for _, peer := range eth.handler.peers.peers {
+		err := peer.NewLocalModel(address, localModelStateHex)
+		if err != nil {
+			log.Error(fmt.Sprintf("peer.NewLocalModel err: %v", err))
+		}
+	}
+	// 通知后端 聚合
+	err := eth.starBackend.NewLocalModel(address, localModelStateHex)
+	if err != nil {
+		return fmt.Errorf("eth.starBackend.NewLocalModel err: %v", err)
+	}
+
+	return nil
+}
+
+func (eth *Ethereum) NewGlobalModel(address *common.Address, modelStateHex string) error {
+	err := eth.globalModelPool.AddModel(modelStateHex)
+	if err != nil {
+		return fmt.Errorf("eth.globalModelPool.AddModel err: %v", err)
+	}
+
+	for _, peer := range eth.handler.peers.peers {
+		err := peer.NewGlobalModel(address, modelStateHex)
+		if err != nil {
+			log.Error(fmt.Sprintf("peer.NewGlobalModel err: %v", err))
+		}
+	}
+
+	eth.blockchain.PublishNewGlobalModel()
+	return nil
+}
+
+func (eth *Ethereum) GetTrainInfo() (map[string]interface{}, error) {
+	res, err := eth.starBackend.GetTrainInfo()
+	if err != nil {
+		return nil, fmt.Errorf("eth.starBackend.GetTrainInfo err: %v", err)
+	}
+
+	return res, nil
+}

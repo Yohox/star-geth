@@ -79,10 +79,11 @@ type Peer struct {
 	queuedBlocks    chan *blockPropagation // Queue of blocks to broadcast to the peer
 	queuedBlockAnns chan *types.Block      // Queue of blocks to announce to the peer
 
-	txpool      TxPool             // Transaction pool used by the broadcasters for liveness checks
-	knownTxs    *knownCache        // Set of transaction hashes known to be known by this peer
-	txBroadcast chan []common.Hash // Channel used to queue transaction propagation requests
-	txAnnounce  chan []common.Hash // Channel used to queue transaction announcement requests
+	txpool           TxPool      // Transaction pool used by the broadcasters for liveness checks
+	knownTxs         *knownCache // Set of transaction hashes known to be known by this peer
+	knownGlobalModel *knownCache
+	txBroadcast      chan []common.Hash // Channel used to queue transaction propagation requests
+	txAnnounce       chan []common.Hash // Channel used to queue transaction announcement requests
 
 	reqDispatch chan *request  // Dispatch channel to send requests and track then until fulfilment
 	reqCancel   chan *cancel   // Dispatch channel to cancel pending requests and untrack them
@@ -96,21 +97,22 @@ type Peer struct {
 // version.
 func NewPeer(version uint, p *p2p.Peer, rw p2p.MsgReadWriter, txpool TxPool) *Peer {
 	peer := &Peer{
-		id:              p.ID().String(),
-		Peer:            p,
-		rw:              rw,
-		version:         version,
-		knownTxs:        newKnownCache(maxKnownTxs),
-		knownBlocks:     newKnownCache(maxKnownBlocks),
-		queuedBlocks:    make(chan *blockPropagation, maxQueuedBlocks),
-		queuedBlockAnns: make(chan *types.Block, maxQueuedBlockAnns),
-		txBroadcast:     make(chan []common.Hash),
-		txAnnounce:      make(chan []common.Hash),
-		reqDispatch:     make(chan *request),
-		reqCancel:       make(chan *cancel),
-		resDispatch:     make(chan *response),
-		txpool:          txpool,
-		term:            make(chan struct{}),
+		id:               p.ID().String(),
+		Peer:             p,
+		rw:               rw,
+		version:          version,
+		knownTxs:         newKnownCache(maxKnownTxs),
+		knownBlocks:      newKnownCache(maxKnownBlocks),
+		knownGlobalModel: newKnownCache(1024),
+		queuedBlocks:     make(chan *blockPropagation, maxQueuedBlocks),
+		queuedBlockAnns:  make(chan *types.Block, maxQueuedBlockAnns),
+		txBroadcast:      make(chan []common.Hash),
+		txAnnounce:       make(chan []common.Hash),
+		reqDispatch:      make(chan *request),
+		reqCancel:        make(chan *cancel),
+		resDispatch:      make(chan *response),
+		txpool:           txpool,
+		term:             make(chan struct{}),
 	}
 	// Start up all the broadcasters
 	go peer.broadcastBlocks()
@@ -244,6 +246,29 @@ func (p *Peer) ReplyPooledTransactionsRLP(id uint64, hashes []common.Hash, txs [
 	return p2p.Send(p.rw, PooledTransactionsMsg, &PooledTransactionsRLPPacket66{
 		RequestId:                   id,
 		PooledTransactionsRLPPacket: txs,
+	})
+}
+
+func (p *Peer) RegisterFlClient(address *common.Address, dataSize uint) error {
+	return p2p.Send(p.rw, RegisterFLClientMsg, &RegisterFLClientPacket66{
+		RegisterFLClientPacket: RegisterFLClientPacket{
+			Address:  address,
+			DataSize: dataSize,
+		},
+	})
+}
+
+func (p *Peer) NewLocalModel(address *common.Address, localModelStateHex string) error {
+	return p2p.Send(p.rw, NewLocalModelMsg, &NewLocalModelPacket66{
+		Address:       address,
+		ModelStateHex: localModelStateHex,
+	})
+}
+
+func (p *Peer) NewGlobalModel(address *common.Address, modelStateHex string) error {
+	return p2p.Send(p.rw, NewGlobalModelMsg, &NewGlobalModelPacket66{
+		Address:       address,
+		ModelStateHex: modelStateHex,
 	})
 }
 

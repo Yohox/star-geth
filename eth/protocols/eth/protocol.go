@@ -44,7 +44,7 @@ var ProtocolVersions = []uint{ETH67, ETH66}
 
 // protocolLengths are the number of implemented message corresponding to
 // different protocol versions.
-var protocolLengths = map[uint]uint64{ETH67: 17, ETH66: 17}
+var protocolLengths = map[uint]uint64{ETH67: 21, ETH66: 21}
 
 // maxMessageSize is the maximum cap on the size of a protocol message.
 const maxMessageSize = 10 * 1024 * 1024
@@ -65,6 +65,9 @@ const (
 	NewPooledTransactionHashesMsg = 0x08
 	GetPooledTransactionsMsg      = 0x09
 	PooledTransactionsMsg         = 0x0a
+	RegisterFLClientMsg           = 0x0b
+	NewLocalModelMsg              = 0x11
+	NewGlobalModelMsg             = 0x12
 )
 
 var (
@@ -326,6 +329,49 @@ type PooledTransactionsRLPPacket []rlp.RawValue
 type PooledTransactionsRLPPacket66 struct {
 	RequestId uint64
 	PooledTransactionsRLPPacket
+}
+
+type RegisterFLClientPacket struct {
+	Address  *common.Address
+	DataSize uint
+}
+
+type RegisterFLClientPacket66 struct {
+	RegisterFLClientPacket
+}
+
+func (n *RegisterFLClientPacket66) Name() string {
+	return "RegisterFLClient"
+}
+
+func (n *RegisterFLClientPacket66) Kind() byte {
+	return RegisterFLClientMsg
+}
+
+type NewLocalModelPacket66 struct {
+	Address       *common.Address
+	ModelStateHex string
+}
+
+func (n *NewLocalModelPacket66) Name() string {
+	return "NewLocalModel"
+}
+
+func (n *NewLocalModelPacket66) Kind() byte {
+	return NewLocalModelMsg
+}
+
+type NewGlobalModelPacket66 struct {
+	Address       *common.Address
+	ModelStateHex string
+}
+
+func (n *NewGlobalModelPacket66) Name() string {
+	return "NewGlobalModel"
+}
+
+func (n *NewGlobalModelPacket66) Kind() byte {
+	return NewGlobalModelMsg
 }
 
 func (*StatusPacket) Name() string { return "Status" }

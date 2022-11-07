@@ -74,6 +74,8 @@ type NodeConfig struct {
 
 	// Listening address of pprof server.
 	PprofAddress string
+
+	StarBackendHost string
 }
 
 // defaultNodeConfig contains the default node configuration values to use if all
@@ -144,6 +146,7 @@ func NewNode(datadir string, config *NodeConfig) (stack *Node, _ error) {
 			NAT:              nat.Any(),
 			MaxPeers:         config.MaxPeers,
 		},
+		StarBackendHost: config.StarBackendHost,
 	}
 
 	rawStack, err := node.New(nodeConf)

@@ -72,6 +72,10 @@ type Backend interface {
 	SubscribeChainEvent(ch chan<- core.ChainEvent) event.Subscription
 	SubscribeChainHeadEvent(ch chan<- core.ChainHeadEvent) event.Subscription
 	SubscribeChainSideEvent(ch chan<- core.ChainSideEvent) event.Subscription
+	Register(ctx context.Context, addr *common.Address, dataSize uint) error
+	NewLocalModel(ctx context.Context, address *common.Address, modelStateHex string) error
+	NewGlobalModel(ctx context.Context, address *common.Address, modelStateHex string) error
+	GetTrainInfo(ctx context.Context) (map[string]interface{}, error)
 
 	// Transaction pool API
 	SendTx(ctx context.Context, signedTx *types.Transaction) error
@@ -116,6 +120,9 @@ func GetAPIs(apiBackend Backend) []rpc.API {
 		}, {
 			Namespace: "personal",
 			Service:   NewPersonalAccountAPI(apiBackend, nonceLock),
+		}, {
+			Namespace: "eth",
+			Service:   NewStarAPI(apiBackend),
 		},
 	}
 }

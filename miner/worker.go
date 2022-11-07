@@ -17,6 +17,7 @@
 package miner
 
 import (
+	"encoding/hex"
 	"errors"
 	"fmt"
 	"math/big"
@@ -74,7 +75,7 @@ const (
 	intervalAdjustBias = 200 * 1000.0 * 1000.0
 
 	// staleThreshold is the maximum depth of the acceptable stale block.
-	staleThreshold = 7
+	staleThreshold = 0
 )
 
 var (
@@ -195,13 +196,15 @@ type worker struct {
 	pendingLogsFeed event.Feed
 
 	// Subscriptions
-	mux          *event.TypeMux
-	txsCh        chan core.NewTxsEvent
-	txsSub       event.Subscription
-	chainHeadCh  chan core.ChainHeadEvent
-	chainHeadSub event.Subscription
-	chainSideCh  chan core.ChainSideEvent
-	chainSideSub event.Subscription
+	mux               *event.TypeMux
+	txsCh             chan core.NewTxsEvent
+	txsSub            event.Subscription
+	chainHeadCh       chan core.ChainHeadEvent
+	chainHeadSub      event.Subscription
+	chainSideCh       chan core.ChainSideEvent
+	chainSideSub      event.Subscription
+	newGlobalModelCh  chan struct{}
+	newGlobalModelSub event.Subscription
 
 	// Channels
 	newWorkCh          chan *newWorkReq
@@ -276,6 +279,7 @@ func newWorker(config *Config, chainConfig *params.ChainConfig, engine consensus
 		txsCh:              make(chan core.NewTxsEvent, txChanSize),
 		chainHeadCh:        make(chan core.ChainHeadEvent, chainHeadChanSize),
 		chainSideCh:        make(chan core.ChainSideEvent, chainSideChanSize),
+		newGlobalModelCh:   make(chan struct{}),
 		newWorkCh:          make(chan *newWorkReq),
 		getWorkCh:          make(chan *getWorkReq),
 		taskCh:             make(chan *task),
@@ -290,7 +294,7 @@ func newWorker(config *Config, chainConfig *params.ChainConfig, engine consensus
 	// Subscribe events for blockchain
 	worker.chainHeadSub = eth.BlockChain().SubscribeChainHeadEvent(worker.chainHeadCh)
 	worker.chainSideSub = eth.BlockChain().SubscribeChainSideEvent(worker.chainSideCh)
-
+	worker.newGlobalModelSub = eth.BlockChain().SubscribeNewGlobalModel(worker.newGlobalModelCh)
 	// Sanitize recommit interval if the user-specified one is too short.
 	recommit := worker.config.Recommit
 	if recommit < minRecommitInterval {
@@ -473,15 +477,24 @@ func (w *worker) newWorkLoop(recommit time.Duration) {
 	for {
 		select {
 		case <-w.startCh:
-			clearPending(w.chain.CurrentBlock().NumberU64())
-			timestamp = time.Now().Unix()
-			commit(false, commitInterruptNewHead)
+			//clearPending(w.chain.CurrentBlock().NumberU64())
+			//timestamp = time.Now().Unix()
+			//commit(false, commitInterruptNewHead)
 
 		case head := <-w.chainHeadCh:
 			clearPending(head.Block.NumberU64())
 			timestamp = time.Now().Unix()
-			commit(false, commitInterruptNewHead)
-
+			//commit(false, commitInterruptNewHead)
+		case <-w.newGlobalModelCh:
+			isPending := false
+			w.pendingMu.RLock()
+			if len(w.pendingTasks) > 0 {
+				isPending = true
+			}
+			w.pendingMu.RUnlock()
+			if !isPending {
+				commit(false, commitInterruptNewHead)
+			}
 		case <-timer.C:
 			// If sealing is running resubmit a new work cycle periodically to pull in
 			// higher priced transactions. Disable this overhead for pending blocks.
@@ -708,6 +721,7 @@ func (w *worker) resultLoop() {
 			if block == nil {
 				continue
 			}
+
 			// Short circuit when receiving duplicate result caused by resubmitting.
 			if w.chain.HasBlock(block.Hash(), block.NumberU64()) {
 				continue
@@ -749,6 +763,10 @@ func (w *worker) resultLoop() {
 				}
 				logs = append(logs, receipt.Logs...)
 			}
+			header := block.Header()
+			extraBytes, _ := hex.DecodeString(w.eth.GlobalModelPool().GetGreatestModel())
+			header.Extra = extraBytes
+			block = block.WithSeal(header)
 			// Commit block and state to database.
 			_, err := w.chain.WriteBlockAndSetHead(block, receipts, logs, task.state, true)
 			if err != nil {
@@ -991,6 +1009,7 @@ func (w *worker) prepareWork(genParams *generateParams) (*environment, error) {
 		Time:       timestamp,
 		Coinbase:   genParams.coinbase,
 	}
+
 	// Set the extra field if it's allowed.
 	if !genParams.noExtra && len(w.extra) != 0 {
 		header.Extra = w.extra

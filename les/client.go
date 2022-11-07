@@ -128,7 +128,7 @@ func New(stack *node.Node, config *ethconfig.Config) (*LightEthereum, error) {
 		reqDist:         newRequestDistributor(peers, &mclock.System{}),
 		accountManager:  stack.AccountManager(),
 		merger:          merger,
-		engine:          ethconfig.CreateConsensusEngine(stack, &config.Ethash, chainConfig.Clique, nil, false, chainDb),
+		engine:          ethconfig.CreateConsensusEngine(stack, &config.Ethash, chainConfig.Clique, nil, false, chainDb, nil),
 		bloomRequests:   make(chan chan *bloombits.Retrieval),
 		bloomIndexer:    core.NewBloomIndexer(chainDb, params.BloomBitsBlocksClient, params.HelperTrieConfirmations),
 		p2pServer:       stack.Server(),
@@ -295,26 +295,27 @@ func (s *LightDummyAPI) Mining() bool {
 // APIs returns the collection of RPC services the ethereum package offers.
 // NOTE, some of these services probably need to be moved to somewhere else.
 func (s *LightEthereum) APIs() []rpc.API {
-	apis := ethapi.GetAPIs(s.ApiBackend)
-	apis = append(apis, s.engine.APIs(s.BlockChain().HeaderChain())...)
-	return append(apis, []rpc.API{
-		{
-			Namespace: "eth",
-			Service:   &LightDummyAPI{},
-		}, {
-			Namespace: "eth",
-			Service:   downloader.NewDownloaderAPI(s.handler.downloader, s.eventMux),
-		}, {
-			Namespace: "net",
-			Service:   s.netRPCService,
-		}, {
-			Namespace: "les",
-			Service:   NewLightAPI(&s.lesCommons),
-		}, {
-			Namespace: "vflux",
-			Service:   s.serverPool.API(),
-		},
-	}...)
+	return make([]rpc.API, 0)
+	//apis := ethapi.GetAPIs(s.ApiBackend)
+	//apis = append(apis, s.engine.APIs(s.BlockChain().HeaderChain())...)
+	//return append(apis, []rpc.API{
+	//	{
+	//		Namespace: "eth",
+	//		Service:   &LightDummyAPI{},
+	//	}, {
+	//		Namespace: "eth",
+	//		Service:   downloader.NewDownloaderAPI(s.handler.downloader, s.eventMux),
+	//	}, {
+	//		Namespace: "net",
+	//		Service:   s.netRPCService,
+	//	}, {
+	//		Namespace: "les",
+	//		Service:   NewLightAPI(&s.lesCommons),
+	//	}, {
+	//		Namespace: "vflux",
+	//		Service:   s.serverPool.API(),
+	//	},
+	//}...)
 }
 
 func (s *LightEthereum) ResetWithGenesisBlock(gb *types.Block) {

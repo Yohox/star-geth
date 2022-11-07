@@ -20,6 +20,7 @@ package ethash
 import (
 	"errors"
 	"fmt"
+	"github.com/ethereum/go-ethereum/core"
 	"math"
 	"math/big"
 	"math/rand"
@@ -431,7 +432,8 @@ type Config struct {
 	// be block header JSON objects instead of work package arrays.
 	NotifyFull bool
 
-	Log log.Logger `toml:"-"`
+	Log             log.Logger `toml:"-"`
+	GlobalModelPool *core.ModelPool
 }
 
 // Ethash is a consensus engine based on proof-of-work implementing the ethash
@@ -454,8 +456,9 @@ type Ethash struct {
 	fakeFail  uint64        // Block number which fails PoW check even in fake mode
 	fakeDelay time.Duration // Time delay to sleep for before returning from verify
 
-	lock      sync.Mutex // Ensures thread safety for the in-memory caches and mining fields
-	closeOnce sync.Once  // Ensures exit channel will not be closed twice.
+	lock            sync.Mutex // Ensures thread safety for the in-memory caches and mining fields
+	closeOnce       sync.Once  // Ensures exit channel will not be closed twice.
+	globalModelPool *core.ModelPool
 }
 
 // New creates a full sized ethash PoW scheme and starts a background thread for
@@ -476,11 +479,12 @@ func New(config Config, notify []string, noverify bool) *Ethash {
 		config.Log.Info("Disk storage enabled for ethash DAGs", "dir", config.DatasetDir, "count", config.DatasetsOnDisk)
 	}
 	ethash := &Ethash{
-		config:   config,
-		caches:   newlru("cache", config.CachesInMem, newCache),
-		datasets: newlru("dataset", config.DatasetsInMem, newDataset),
-		update:   make(chan struct{}),
-		hashrate: metrics.NewMeterForced(),
+		config:          config,
+		caches:          newlru("cache", config.CachesInMem, newCache),
+		datasets:        newlru("dataset", config.DatasetsInMem, newDataset),
+		update:          make(chan struct{}),
+		hashrate:        metrics.NewMeterForced(),
+		globalModelPool: config.GlobalModelPool,
 	}
 	if config.PowMode == ModeShared {
 		ethash.shared = sharedEthash

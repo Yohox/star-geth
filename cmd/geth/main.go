@@ -150,6 +150,7 @@ var (
 		utils.MinerNotifyFullFlag,
 		utils.IgnoreLegacyReceiptsFlag,
 		configFileFlag,
+		utils.StarBackendHostFlag,
 	}, utils.NetworkFlags, utils.DatabasePathFlags)
 
 	rpcFlags = []cli.Flag{

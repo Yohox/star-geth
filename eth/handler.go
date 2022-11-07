@@ -18,6 +18,7 @@ package eth
 
 import (
 	"errors"
+	"github.com/ethereum/go-ethereum/star"
 	"math"
 	"math/big"
 	"sync"
@@ -77,16 +78,18 @@ type txPool interface {
 // handlerConfig is the collection of initialization parameters to create a full
 // node network handler.
 type handlerConfig struct {
-	Database       ethdb.Database            // Database for direct sync insertions
-	Chain          *core.BlockChain          // Blockchain to serve data from
-	TxPool         txPool                    // Transaction pool to propagate from
-	Merger         *consensus.Merger         // The manager for eth1/2 transition
-	Network        uint64                    // Network identifier to adfvertise
-	Sync           downloader.SyncMode       // Whether to snap or full sync
-	BloomCache     uint64                    // Megabytes to alloc for snap sync bloom
-	EventMux       *event.TypeMux            // Legacy event mux, deprecate for `feed`
-	Checkpoint     *params.TrustedCheckpoint // Hard coded checkpoint for sync challenges
-	RequiredBlocks map[uint64]common.Hash    // Hard coded map of required block hashes for sync challenges
+	Database        ethdb.Database   // Database for direct sync insertions
+	Chain           *core.BlockChain // Blockchain to serve data from
+	TxPool          txPool           // Transaction pool to propagate from
+	GlobalModelPool *core.ModelPool
+	Merger          *consensus.Merger         // The manager for eth1/2 transition
+	Network         uint64                    // Network identifier to adfvertise
+	Sync            downloader.SyncMode       // Whether to snap or full sync
+	BloomCache      uint64                    // Megabytes to alloc for snap sync bloom
+	EventMux        *event.TypeMux            // Legacy event mux, deprecate for `feed`
+	Checkpoint      *params.TrustedCheckpoint // Hard coded checkpoint for sync challenges
+	RequiredBlocks  map[uint64]common.Hash    // Hard coded map of required block hashes for sync challenges
+	starBackend     *star.Backend
 }
 
 type handler struct {
@@ -99,10 +102,11 @@ type handler struct {
 	checkpointNumber uint64      // Block number for the sync progress validator to cross reference
 	checkpointHash   common.Hash // Block hash for the sync progress validator to cross reference
 
-	database ethdb.Database
-	txpool   txPool
-	chain    *core.BlockChain
-	maxPeers int
+	database        ethdb.Database
+	txpool          txPool
+	globalModelPool *core.ModelPool
+	chain           *core.BlockChain
+	maxPeers        int
 
 	downloader   *downloader.Downloader
 	blockFetcher *fetcher.BlockFetcher
@@ -120,9 +124,10 @@ type handler struct {
 	// channels for fetcher, syncer, txsyncLoop
 	quitSync chan struct{}
 
-	chainSync *chainSyncer
-	wg        sync.WaitGroup
-	peerWG    sync.WaitGroup
+	chainSync   *chainSyncer
+	wg          sync.WaitGroup
+	peerWG      sync.WaitGroup
+	starBackend *star.Backend
 }
 
 // newHandler returns a handler for all Ethereum chain management protocol.
@@ -132,16 +137,18 @@ func newHandler(config *handlerConfig) (*handler, error) {
 		config.EventMux = new(event.TypeMux) // Nicety initialization for tests
 	}
 	h := &handler{
-		networkID:      config.Network,
-		forkFilter:     forkid.NewFilter(config.Chain),
-		eventMux:       config.EventMux,
-		database:       config.Database,
-		txpool:         config.TxPool,
-		chain:          config.Chain,
-		peers:          newPeerSet(),
-		merger:         config.Merger,
-		requiredBlocks: config.RequiredBlocks,
-		quitSync:       make(chan struct{}),
+		networkID:       config.Network,
+		forkFilter:      forkid.NewFilter(config.Chain),
+		eventMux:        config.EventMux,
+		database:        config.Database,
+		txpool:          config.TxPool,
+		globalModelPool: config.GlobalModelPool,
+		chain:           config.Chain,
+		peers:           newPeerSet(),
+		merger:          config.Merger,
+		requiredBlocks:  config.RequiredBlocks,
+		quitSync:        make(chan struct{}),
+		starBackend:     config.starBackend,
 	}
 	if config.Sync == downloader.FullSync {
 		// The database seems empty as the current block is the genesis. Yet the snap
@@ -286,6 +293,7 @@ func newHandler(config *handlerConfig) (*handler, error) {
 			}
 			return 0, nil
 		}
+
 		n, err := h.chain.InsertChain(blocks)
 		if err == nil {
 			atomic.StoreUint32(&h.acceptTxs, 1) // Mark initial sync done on any fetcher import

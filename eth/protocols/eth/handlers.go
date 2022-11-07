@@ -526,3 +526,28 @@ func handlePooledTransactions66(backend Backend, msg Decoder, peer *Peer) error 
 
 	return backend.Handle(peer, &txs.PooledTransactionsPacket)
 }
+
+func handleNewLocalModel66(backend Backend, msg Decoder, peer *Peer) error {
+	var packet NewLocalModelPacket66
+	if err := msg.Decode(&packet); err != nil {
+		return fmt.Errorf("%w: message %v: %v", errDecode, msg, err)
+	}
+
+	return backend.Handle(peer, &packet)
+}
+
+func handleNewGlobalModel66(backend Backend, msg Decoder, peer *Peer) error {
+	var packet NewGlobalModelPacket66
+	if err := msg.Decode(&packet); err != nil {
+		return fmt.Errorf("%w: message %v: %v", errDecode, msg, err)
+	}
+	return backend.Handle(peer, &packet)
+}
+
+func handleRegisterFLClient66(backend Backend, msg Decoder, peer *Peer) error {
+	var packet RegisterFLClientPacket66
+	if err := msg.Decode(&packet); err != nil {
+		return fmt.Errorf("%w: message %v: %v", errDecode, msg, err)
+	}
+	return backend.Handle(peer, &packet)
+}

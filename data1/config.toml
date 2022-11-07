@@ -1,0 +1,5 @@
+[Node.P2P]
+MaxPeers = 10
+NoDiscovery = true
+StaticNodes = []
+

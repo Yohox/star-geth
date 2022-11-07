@@ -20,6 +20,7 @@ package eth
 import (
 	"errors"
 	"fmt"
+	"github.com/ethereum/go-ethereum/star"
 	"math/big"
 	"runtime"
 	"sync"
@@ -98,6 +99,8 @@ type Ethereum struct {
 	lock sync.RWMutex // Protects the variadic fields (e.g. gas price and etherbase)
 
 	shutdownTracker *shutdowncheck.ShutdownTracker // Tracks if and when the node has shutdown ungracefully
+	globalModelPool *core.ModelPool
+	starBackend     *star.Backend
 }
 
 // New creates a new Ethereum object (including the
@@ -140,7 +143,8 @@ func New(stack *node.Node, config *ethconfig.Config) (*Ethereum, error) {
 	if err != nil {
 		return nil, err
 	}
-	engine := ethconfig.CreateConsensusEngine(stack, &ethashConfig, cliqueConfig, config.Miner.Notify, config.Miner.Noverify, chainDb)
+	globalModelPool := core.NewModelPool()
+	engine := ethconfig.CreateConsensusEngine(stack, &ethashConfig, cliqueConfig, config.Miner.Notify, config.Miner.Noverify, chainDb, globalModelPool)
 
 	eth := &Ethereum{
 		config:            config,
@@ -157,6 +161,7 @@ func New(stack *node.Node, config *ethconfig.Config) (*Ethereum, error) {
 		bloomIndexer:      core.NewBloomIndexer(chainDb, params.BloomBitsBlocks, params.BloomConfirms),
 		p2pServer:         stack.Server(),
 		shutdownTracker:   shutdowncheck.NewShutdownTracker(chainDb),
+		starBackend:       star.NewBackend(stack.Config().StarBackendHost),
 	}
 
 	bcVersion := rawdb.ReadDatabaseVersion(chainDb)
@@ -210,7 +215,7 @@ func New(stack *node.Node, config *ethconfig.Config) (*Ethereum, error) {
 		config.TxPool.Journal = stack.ResolvePath(config.TxPool.Journal)
 	}
 	eth.txPool = core.NewTxPool(config.TxPool, eth.blockchain.Config(), eth.blockchain)
-
+	eth.globalModelPool = globalModelPool
 	// Permit the downloader to use the trie cache allowance during fast sync
 	cacheLimit := cacheConfig.TrieCleanLimit + cacheConfig.TrieDirtyLimit + cacheConfig.SnapshotLimit
 	checkpoint := config.Checkpoint
@@ -218,23 +223,24 @@ func New(stack *node.Node, config *ethconfig.Config) (*Ethereum, error) {
 		checkpoint = params.TrustedCheckpoints[eth.blockchain.Genesis().Hash()]
 	}
 	if eth.handler, err = newHandler(&handlerConfig{
-		Database:       chainDb,
-		Chain:          eth.blockchain,
-		TxPool:         eth.txPool,
-		Merger:         eth.merger,
-		Network:        config.NetworkId,
-		Sync:           config.SyncMode,
-		BloomCache:     uint64(cacheLimit),
-		EventMux:       eth.eventMux,
-		Checkpoint:     checkpoint,
-		RequiredBlocks: config.RequiredBlocks,
+		Database:        chainDb,
+		Chain:           eth.blockchain,
+		TxPool:          eth.txPool,
+		Merger:          eth.merger,
+		Network:         config.NetworkId,
+		Sync:            config.SyncMode,
+		BloomCache:      uint64(cacheLimit),
+		EventMux:        eth.eventMux,
+		Checkpoint:      checkpoint,
+		RequiredBlocks:  config.RequiredBlocks,
+		starBackend:     eth.starBackend,
+		GlobalModelPool: globalModelPool,
 	}); err != nil {
 		return nil, err
 	}
 
 	eth.miner = miner.New(eth, &config.Miner, eth.blockchain.Config(), eth.EventMux(), eth.engine, eth.isLocalBlock)
 	eth.miner.SetExtra(makeExtraData(config.Miner.ExtraData))
-
 	eth.APIBackend = &EthAPIBackend{stack.Config().ExtRPCEnabled(), stack.Config().AllowUnprotectedTxs, eth, nil}
 	if eth.APIBackend.allowUnprotectedTxs {
 		log.Info("Unprotected transactions allowed")
@@ -266,8 +272,19 @@ func New(stack *node.Node, config *ethconfig.Config) (*Ethereum, error) {
 
 	// Successful startup; push a marker and check previous unclean shutdowns.
 	eth.shutdownTracker.MarkStartup()
-
+	go eth.starLoop()
 	return eth, nil
+}
+
+func (e *Ethereum) starLoop() {
+	ch := make(chan core.ChainHeadEvent)
+	e.blockchain.SubscribeChainHeadEvent(ch)
+	for {
+		select {
+		case <-ch:
+			e.globalModelPool.Clear()
+		}
+	}
 }
 
 func makeExtraData(extra []byte) []byte {
@@ -483,6 +500,7 @@ func (s *Ethereum) Miner() *miner.Miner { return s.miner }
 func (s *Ethereum) AccountManager() *accounts.Manager  { return s.accountManager }
 func (s *Ethereum) BlockChain() *core.BlockChain       { return s.blockchain }
 func (s *Ethereum) TxPool() *core.TxPool               { return s.txPool }
+func (s *Ethereum) GlobalModelPool() *core.ModelPool   { return s.globalModelPool }
 func (s *Ethereum) EventMux() *event.TypeMux           { return s.eventMux }
 func (s *Ethereum) Engine() consensus.Engine           { return s.engine }
 func (s *Ethereum) ChainDb() ethdb.Database            { return s.chainDb }

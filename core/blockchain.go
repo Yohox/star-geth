@@ -181,15 +181,16 @@ type BlockChain struct {
 	//  * nil: disable tx reindexer/deleter, but still index new blocks
 	txLookupLimit uint64
 
-	hc            *HeaderChain
-	rmLogsFeed    event.Feed
-	chainFeed     event.Feed
-	chainSideFeed event.Feed
-	chainHeadFeed event.Feed
-	logsFeed      event.Feed
-	blockProcFeed event.Feed
-	scope         event.SubscriptionScope
-	genesisBlock  *types.Block
+	hc                 *HeaderChain
+	rmLogsFeed         event.Feed
+	chainFeed          event.Feed
+	chainSideFeed      event.Feed
+	chainHeadFeed      event.Feed
+	logsFeed           event.Feed
+	blockProcFeed      event.Feed
+	newGlobalModelFeed event.Feed
+	scope              event.SubscriptionScope
+	genesisBlock       *types.Block
 
 	// This mutex synchronizes chain write operations.
 	// Readers don't need to take it, they can just read the database.

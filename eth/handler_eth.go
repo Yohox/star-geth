@@ -33,8 +33,9 @@ import (
 // packets that are sent as replies or broadcasts.
 type ethHandler handler
 
-func (h *ethHandler) Chain() *core.BlockChain { return h.chain }
-func (h *ethHandler) TxPool() eth.TxPool      { return h.txpool }
+func (h *ethHandler) Chain() *core.BlockChain          { return h.chain }
+func (h *ethHandler) TxPool() eth.TxPool               { return h.txpool }
+func (h *ethHandler) GlobalModelPool() *core.ModelPool { return h.globalModelPool }
 
 // RunPeer is invoked when a peer joins on the `eth` protocol.
 func (h *ethHandler) RunPeer(peer *eth.Peer, hand eth.Handler) error {
@@ -76,6 +77,14 @@ func (h *ethHandler) Handle(peer *eth.Peer, packet eth.Packet) error {
 	case *eth.PooledTransactionsPacket:
 		return h.txFetcher.Enqueue(peer.ID(), *packet, true)
 
+	case *eth.NewLocalModelPacket66:
+		return h.handleNewLocalModel(peer, *packet)
+
+	case *eth.NewGlobalModelPacket66:
+		return h.handleNewGlobalModel(peer, *packet)
+
+	case *eth.RegisterFLClientPacket66:
+		return h.handleRegisterFLClient(peer, *packet)
 	default:
 		return fmt.Errorf("unexpected eth packet type: %T", packet)
 	}
@@ -134,5 +143,33 @@ func (h *ethHandler) handleBlockBroadcast(peer *eth.Peer, block *types.Block, td
 		peer.SetHead(trueHead, trueTD)
 		h.chainSync.handlePeerEvent(peer)
 	}
+	return nil
+}
+
+func (h *ethHandler) handleNewLocalModel(peer *eth.Peer, packet eth.NewLocalModelPacket66) error {
+	err := h.starBackend.NewLocalModel(packet.Address, packet.ModelStateHex)
+	if err != nil {
+		return fmt.Errorf("h.starBackend.NewLocalModel err: %v", err)
+	}
+
+	return nil
+}
+
+func (h *ethHandler) handleNewGlobalModel(peer *eth.Peer, packet eth.NewGlobalModelPacket66) error {
+	err := h.globalModelPool.AddModel(packet.ModelStateHex)
+	if err != nil {
+		return fmt.Errorf("h.globalModelPool.AddModel err: %v", err)
+	}
+	h.chain.PublishNewGlobalModel()
+
+	return nil
+}
+
+func (h *ethHandler) handleRegisterFLClient(peer *eth.Peer, packet eth.RegisterFLClientPacket66) error {
+	err := h.starBackend.Register(packet.RegisterFLClientPacket.Address, packet.RegisterFLClientPacket.DataSize)
+	if err != nil {
+		return fmt.Errorf("h.starBackend.Register err: %v", err)
+	}
+
 	return nil
 }
