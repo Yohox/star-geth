@@ -1,5 +1,5 @@
 [Node.P2P]
 MaxPeers = 10
 NoDiscovery = true
-StaticNodes = ["enode://df998b0b1cebbcabda01da2fe77a45693469b0ea45272975969e39cb76ccea3109d795a44ef19de744c4f7aeced23865be9a0a278a648954c5451af9b4166d1f@127.0.0.1:30304"]
+StaticNodes = ["enode://804a6c2daf5cc50f4d82f739094bd834f34fd956d772ae22f5ca01fe761d6c8cb19241746732ca995532dadee32c440770f3f0b72763781e4416bfb6cb050b45@127.0.0.1:30304?discport=0"]
 

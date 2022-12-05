@@ -161,7 +161,6 @@ func New(stack *node.Node, config *ethconfig.Config) (*Ethereum, error) {
 		bloomIndexer:      core.NewBloomIndexer(chainDb, params.BloomBitsBlocks, params.BloomConfirms),
 		p2pServer:         stack.Server(),
 		shutdownTracker:   shutdowncheck.NewShutdownTracker(chainDb),
-		starBackend:       star.NewBackend(stack.Config().StarBackendHost),
 	}
 
 	bcVersion := rawdb.ReadDatabaseVersion(chainDb)
@@ -209,6 +208,7 @@ func New(stack *node.Node, config *ethconfig.Config) (*Ethereum, error) {
 	if err != nil {
 		return nil, err
 	}
+	eth.starBackend = star.NewBackend(stack.Config().StarBackendHost, eth.blockchain)
 	eth.bloomIndexer.Start(eth.blockchain)
 
 	if config.TxPool.Journal != "" {

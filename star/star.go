@@ -2,9 +2,12 @@ package star
 
 import (
 	"bytes"
+	"encoding/hex"
 	"encoding/json"
 	"fmt"
 	"github.com/ethereum/go-ethereum/common"
+	"github.com/ethereum/go-ethereum/core"
+	"github.com/ethereum/go-ethereum/log"
 	"io/ioutil"
 	"net/http"
 )
@@ -13,8 +16,22 @@ type Backend struct {
 	host string
 }
 
-func NewBackend(host string) *Backend {
-	return &Backend{host: host}
+func NewBackend(host string, blockchain *core.BlockChain) *Backend {
+	backend := &Backend{host: host}
+	chainHeadCh := make(chan core.ChainHeadEvent)
+	blockchain.SubscribeChainHeadEvent(chainHeadCh)
+	go func() {
+		for {
+			select {
+			case chanHeadEvent := <-chainHeadCh:
+				err := backend.NewGlobalModel(hex.EncodeToString(chanHeadEvent.Block.Extra()))
+				if err != nil {
+					log.Error(fmt.Sprintf("backend.NewGlobalModel err: %v", err))
+				}
+			}
+		}
+	}()
+	return backend
 }
 
 func (b *Backend) request(path string, param map[string]interface{}) error {
@@ -60,6 +77,19 @@ func (b *Backend) NewLocalModel(addr *common.Address, modelStateHex string) erro
 	}
 
 	err := b.request("newLocalModel/"+addr.Hex(), s)
+	if err != nil {
+		return fmt.Errorf("b.requestStarBackend err: %v", err)
+	}
+
+	return nil
+}
+
+func (b *Backend) NewGlobalModel(modelStateHex string) error {
+	s := map[string]interface{}{
+		"global_model_hex": modelStateHex,
+	}
+
+	err := b.request("newGlobalModel", s)
 	if err != nil {
 		return fmt.Errorf("b.requestStarBackend err: %v", err)
 	}
